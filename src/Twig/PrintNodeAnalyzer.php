@@ -415,6 +415,13 @@ final class PrintNodeAnalyzer
             ];
         }
 
+        if (($expression instanceof FilterExpression || $expression instanceof FunctionExpression)
+            && $this->context->givesMarkup($expression)
+        ) {
+            // what the callable makes markup of flows through it, the filters applied before it included
+            return $this->getTaintSources($expression);
+        }
+
         return [];
     }
 

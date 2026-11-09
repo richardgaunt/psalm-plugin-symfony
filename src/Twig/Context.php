@@ -66,6 +66,14 @@ final class Context
 {
     /** The prefix Twig gives the names it reserves (Twig\Node\Expression\TempNameExpression::RESERVED_NAME_PREFIX) */
     private const RESERVED_NAME_PREFIX = "\u{035C}";
+
+    /**
+     * The classes and interfaces whose instances Twig's autoescaping outputs as is: Twig's own markup class, with
+     * those an integration registers (see addMarkupType()).
+     *
+     * @var non-empty-list<string>
+     */
+    private static array $markupTypes = [\Twig\Markup::class];
     /** the most methods, a method and its overrides, a method call or an attribute of an object is linked to (see getMethodCallTaintDestination() and getMethodReturns()) */
     private const MAX_CALLED_METHODS = 8;
 
@@ -269,6 +277,52 @@ final class Context
     public function isMarkup(DataFlowNode $node): bool
     {
         return isset($this->markups[$node->id]);
+    }
+
+    /**
+     * Registers $type, the name of a class or interface whose instances Twig's autoescaping outputs as is, like
+     * Twig\Markup (e.g. Drupal's MarkupInterface): the filters and functions declared to return one give markup (see
+     * givesMarkup()).
+     */
+    public static function addMarkupType(string $type): void
+    {
+        self::$markupTypes[] = ltrim($type, '\\');
+    }
+
+    /**
+     * Whether what the filter or function $expression gives is markup, which autoescaping outputs as is: its PHP
+     * callable is declared to return one of the markup types (see addMarkupType()).
+     */
+    public function givesMarkup(FilterExpression|FunctionExpression $expression): bool
+    {
+        $codebase = $this->codebase;
+        if (null === $codebase) {
+            return false;
+        }
+
+        $storage = self::getCallableStorage($codebase, $this->getTwigCallable($expression)?->getCallable());
+        if (null === $storage) {
+            return false;
+        }
+
+        foreach ([$storage->signature_return_type, $storage->return_type] as $returnType) {
+            foreach (null === $returnType ? [] : $returnType->getAtomicTypes() as $atomic) {
+                if (!$atomic instanceof TNamedObject) {
+                    continue;
+                }
+
+                foreach (self::$markupTypes as $markupType) {
+                    if (0 === strcasecmp($atomic->value, $markupType)
+                        || $codebase->classExtendsOrImplements($atomic->value, $markupType)
+                        || $codebase->interfaceExtends($atomic->value, $markupType)
+                    ) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
