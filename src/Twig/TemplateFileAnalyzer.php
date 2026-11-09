@@ -29,6 +29,12 @@ final class TemplateFileAnalyzer extends FileAnalyzer
 
     private static ?Environment $environment = null;
 
+    /** @var (callable(Codebase): Environment)|null */
+    private static $environmentFactory;
+
+    /** @var (callable(string): string)|null */
+    private static $nameResolver;
+
     /**
      * @param list<array{class-string, ?class-string}> $extensionClasses the class of each extension, and the runtime
      *                                                                   class an AttributeExtension is built from
@@ -37,6 +43,34 @@ final class TemplateFileAnalyzer extends FileAnalyzer
     {
         self::$extensionClasses = $extensionClasses;
         self::$environment = null;
+    }
+
+    /**
+     * Makes the templates analyzed with the environment $factory gives for the codebase, in place of the default one:
+     * an integration's own loader and extensions (e.g. Drupal's template namespaces and components).
+     *
+     * @psalm-api
+     *
+     * @param (callable(Codebase): Environment)|null $factory
+     */
+    public static function setEnvironmentFactory(?callable $factory): void
+    {
+        self::$environmentFactory = $factory;
+        self::$environment = null;
+    }
+
+    /**
+     * Makes getTemplateName() name the template of a file what $resolver gives for its path in the project, in place
+     * of the default naming: the name its include sites and an integration's render calls use for it (e.g. a Drupal
+     * component ID or `@extension` path).
+     *
+     * @psalm-api
+     *
+     * @param (callable(string): string)|null $resolver
+     */
+    public static function setNameResolver(?callable $resolver): void
+    {
+        self::$nameResolver = $resolver;
     }
 
     #[\Override]
@@ -83,6 +117,10 @@ final class TemplateFileAnalyzer extends FileAnalyzer
     {
         if (null !== self::$environment) {
             return self::$environment;
+        }
+
+        if (null !== self::$environmentFactory) {
+            return self::$environment = (self::$environmentFactory)($codebase);
         }
 
         // a template outside of the root is named after its path in the project
@@ -148,6 +186,10 @@ final class TemplateFileAnalyzer extends FileAnalyzer
      */
     public static function getTemplateName(string $file_name): string
     {
+        if (null !== self::$nameResolver) {
+            return (self::$nameResolver)($file_name);
+        }
+
         return str_starts_with($file_name, self::$rootPath.'/')
             ? substr($file_name, \strlen(self::$rootPath) + 1)
             : $file_name;
