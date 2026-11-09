@@ -26,6 +26,14 @@ use Twig\Node\PrintNode;
  */
 final class PrintNodeAnalyzer
 {
+    /**
+     * The names of the filters that escape what they are given: `escape` and its aliases, with those an integration
+     * registers (see addEscapingFilter()).
+     *
+     * @var non-empty-list<lowercase-string>
+     */
+    private static array $escapingFilters = ['escape', 'e'];
+
     /** @var Context */
     private $context;
 
@@ -361,11 +369,18 @@ final class PrintNodeAnalyzer
         return $this->context->callMacro($expression, $arguments);
     }
 
+    /**
+     * Registers the filter named $name as an escaping filter: an integration's alias of `escape`, whose output is as
+     * safe to print whatever its PHP callable declares.
+     */
+    public static function addEscapingFilter(string $name): void
+    {
+        self::$escapingFilters[] = strtolower($name);
+    }
+
     private static function isEscapingFilter(FilterExpression $expression): bool
     {
-        $filterName = Context::getFilterName($expression);
-
-        return 'escape' === $filterName || 'e' === $filterName;
+        return \in_array(strtolower(Context::getFilterName($expression)), self::$escapingFilters, true);
     }
 
     /**

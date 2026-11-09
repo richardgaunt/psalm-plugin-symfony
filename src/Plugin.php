@@ -25,6 +25,7 @@ use Psalm\SymfonyPsalmPlugin\Symfony\ContainerMeta;
 use Psalm\SymfonyPsalmPlugin\Twig\AnalyzedTemplatesTainter;
 use Psalm\SymfonyPsalmPlugin\Twig\CachedTemplatesMapping;
 use Psalm\SymfonyPsalmPlugin\Twig\CachedTemplatesTainter;
+use Psalm\SymfonyPsalmPlugin\Twig\PrintNodeAnalyzer;
 use Psalm\SymfonyPsalmPlugin\Twig\TemplateFileAnalyzer;
 use Psalm\SymfonyPsalmPlugin\Twig\TwigUtils;
 use Symfony\Component\DependencyInjection\Exception\ServiceNotFoundException;
@@ -147,6 +148,15 @@ final class Plugin implements PluginEntryPointInterface
             AnalyzedTemplatesTainter::addRenderMethod($method[0], $method[1], $templateArgument, $contextArgument, $templateDirectoryArgument);
         }
         $registration->registerHooksFromClass(AnalyzedTemplatesTainter::class);
+        foreach ($config->twigEscapingFilter ?? [] as $filter) {
+            $name = trim((string) $filter);
+            if ('' === $name) {
+                throw new ConfigException('A twig escaping filter has no name.');
+            }
+
+            PrintNodeAnalyzer::addEscapingFilter($name);
+        }
+
         foreach ($config->twigConstant ?? [] as $constant) {
             $name = trim((string) ($constant['name'] ?? ''));
             if ('' === $name) {
